@@ -1,0 +1,7 @@
+# misc
+/.idea/
+/.vscode/
+**/.DS_Store
+.DS_Store
+**/.cache
+go.sum

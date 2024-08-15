@@ -1,0 +1,64 @@
+version: 2
+project_name: tg-questions-bot
+
+# Build
+builds:
+  - env:
+      - CGO_ENABLED=0
+      - >-
+        {{- if eq .Os "darwin" }}
+          {{- if eq .Arch "amd64"}}CC=o64-clang{{- end }}
+          {{- if eq .Arch "arm64"}}CC=aarch64-apple-darwin20.2-clang{{- end }}
+        {{- end }}
+        {{- if eq .Os "windows" }}
+          {{- if eq .Arch "amd64" }}CC=x86_64-w64-mingw32-gcc{{- end }}
+        {{- end }}
+    goos:
+      - linux
+      # - darwin
+      # - windows
+    goarch:
+      - amd64
+      - arm64
+
+    ignore:
+      - goos: windows
+        goarch: arm64
+
+    ldflags:
+      - -s -w
+      - -X "main.Version={{ .Version }}"
+      - -X "main.GitCommit={{ .ShortCommit }}"
+      - -X "main.Timestamp={{ .Timestamp }}"
+    flags:
+      - -trimpath
+
+# Archive
+archives:
+  - name_template: >-
+      {{ .ProjectName }}_v{{ .Version }}_{{ .Os }}_{{- if eq .Arch "arm64" }}aarch64{{- else }}{{ .Arch }}{{- end }}
+    format: "binary"
+
+# Checksum
+checksum:
+  disable: true
+
+# Snapshot
+snapshot:
+  name_template: "{{ .Major }}.{{ .Minor }}.{{ .Patch }}-dev+{{ .ShortCommit }}"
+
+# Changelog
+changelog:
+  use: github
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^Merge branch"
+      - "^CI:"
+
+release:
+  github:
+    owner: azhinu
+    name: telegram-question-cards-bot
+  name_template: "{{title .ProjectName}} v{{.Version}}"
