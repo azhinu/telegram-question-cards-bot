@@ -3,8 +3,11 @@ package main
 import (
 	"fmt"
 	"log"
+	"net/url"
 	"os"
+	"os/signal"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/alecthomas/kong"
@@ -74,13 +77,26 @@ func cleanup() {
 	}
 }
 
+func shutdown(sigCh chan os.Signal, bot *telego.Bot, botHandler *th.BotHandler) {
+	s := <-sigCh
+	_ = s
+		// Stop handling updates on exit
+	fmt.Println("Bot stopped gracefully")
+	botHandler.Stop()
+	if cli.URL == "" {
+			bot.StopLongPolling()
+		} else {
+			bot.StopWebhook()
+	}
+}
+
 func main() {
-		// parse cli
-		ctx := kong.Parse(&cli,
-		kong.Name("tg_question_cards_bot"),
-		kong.Description("Run telegram bot to play question cards game"),
-		kong.UsageOnError(),
-		)
+	// parse cli
+	ctx := kong.Parse(&cli,
+	kong.Name("tg_question_cards_bot"),
+	kong.Description("Run telegram bot to play question cards game"),
+	kong.UsageOnError(),
+	)
 	if cli.Version {
 		fmt.Println("Version:", Version, "GitCommit:", GitCommit, "Timestamp:", Timestamp)
 		os.Exit(0)
@@ -100,54 +116,75 @@ func main() {
 		log.Fatalf("Error reading YAML file: %v", err)
 	}
 
+
 	// Init global vars
 	Sessions = make(map[int64]Session)
 	Lock = sync.RWMutex{}
-
+	
 	bot, err := telego.NewBot(cli.Token, telego.WithDefaultLogger(cli.Debug, true))
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
 
+
 	// Start bot with polling or with webhook
 	var updates <-chan telego.Update
+
 	if cli.URL != "" {
 		// Set up a webhook on Telegram side
-		_ = bot.SetWebhook(&telego.SetWebhookParams{
+		defer bot.DeleteWebhook(&telego.DeleteWebhookParams{
+			DropPendingUpdates: true,
+		})
+		err := bot.SetWebhook(&telego.SetWebhookParams{
 			URL: cli.URL,
 		})
-
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+		
 		// Receive information about webhook
 		info, _ := bot.GetWebhookInfo()
 		fmt.Printf("Webhook Info: %+v\n", info)
-
+		
 		// Get an update channel from webhook.
-		updates, _ = bot.UpdatesViaWebhook("/bot" + bot.Token())
-
-		// Start server for receiving requests from the Telegram
-		go func() {
-			_ = bot.StartWebhook(fmt.Sprint("localhost:", cli.Port))
-		}()
-
-		// Stop reviving updates from update channel and shutdown webhook server
-		defer func() {
-			_ = bot.StopWebhook()
-		}()
-	} else {
-	updates, _ = bot.UpdatesViaLongPolling(nil)
+		parsedURL, err := url.Parse(cli.URL)
+		if err != nil {
+			fmt.Println(err)
+			bot.DeleteWebhook(&telego.DeleteWebhookParams{
+				DropPendingUpdates: true,
+			})
+			os.Exit(1)
 	}
+	updates, _ = bot.UpdatesViaWebhook(parsedURL.Path)
+	fmt.Println("Listening for updates via webhook on", parsedURL.Path)
+	
+	// Start server for receiving requests from the Telegram
+	go func() {
+		err := bot.StartWebhook(fmt.Sprint("localhost:", cli.Port))
+		if err != nil {
+			fmt.Println(err)
+			bot.DeleteWebhook(&telego.DeleteWebhookParams{
+				DropPendingUpdates: true,
+			})
+			os.Exit(1)
+		}
+	}()
+	} else {
+		updates, _ = bot.UpdatesViaLongPolling(nil)
+	}
+
+	// Create a bot handler
 	botHandler, _ := th.NewBotHandler(bot, updates)
-
 	botHandler.HandleMessage(Start, th.CommandEqual("start"))
-
 	botHandler.HandleCallbackQuery(NextQuestion, th.CallbackDataEqual("next"))
-
 	botHandler.HandleCallbackQuery(SelectDeck, th.AnyCallbackQuery())
 
-	// Stop handling updates on exit
-	defer botHandler.Stop()
-	defer bot.StopLongPolling()
+	// Make a gracefull shutdown
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh,os.Interrupt, syscall.SIGTERM)
+	go shutdown(sigCh, bot, botHandler)
 
 	// Start handling updates
 	botHandler.Start()
