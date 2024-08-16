@@ -86,7 +86,11 @@ func shutdown(sigCh chan os.Signal, bot *telego.Bot, botHandler *th.BotHandler) 
 	if cli.URL == "" {
 			bot.StopLongPolling()
 		} else {
-			bot.StopWebhook()
+			err := bot.StopWebhook()
+			if err != nil {
+				fmt.Println(err)
+			}
+			os.Exit(1)
 	}
 }
 
@@ -133,9 +137,14 @@ func main() {
 
 	if cli.URL != "" {
 		// Set up a webhook on Telegram side
-		defer bot.DeleteWebhook(&telego.DeleteWebhookParams{
-			DropPendingUpdates: true,
-		})
+		defer func ()  {
+			err := bot.DeleteWebhook(&telego.DeleteWebhookParams{
+				DropPendingUpdates: true,
+			})
+			if err != nil {
+				fmt.Println("Unable to delete webhook.", err)
+			}
+		}()
 		err := bot.SetWebhook(&telego.SetWebhookParams{
 			URL: cli.URL,
 		})
@@ -152,9 +161,12 @@ func main() {
 		parsedURL, err := url.Parse(cli.URL)
 		if err != nil {
 			fmt.Println(err)
-			bot.DeleteWebhook(&telego.DeleteWebhookParams{
+			err := bot.DeleteWebhook(&telego.DeleteWebhookParams{
 				DropPendingUpdates: true,
 			})
+			if err != nil {
+				fmt.Println("Unable to delete webhook.", err)
+			}
 			os.Exit(1)
 	}
 	updates, _ = bot.UpdatesViaWebhook(parsedURL.Path)
@@ -165,9 +177,12 @@ func main() {
 		err := bot.StartWebhook(fmt.Sprint("localhost:", cli.Port))
 		if err != nil {
 			fmt.Println(err)
-			bot.DeleteWebhook(&telego.DeleteWebhookParams{
+			err := bot.DeleteWebhook(&telego.DeleteWebhookParams{
 				DropPendingUpdates: true,
 			})
+			if err != nil {
+				fmt.Println("Unable to delete webhook.", err)
+			}
 			os.Exit(1)
 		}
 	}()
