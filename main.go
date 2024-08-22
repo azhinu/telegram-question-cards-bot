@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"net/url"
 	"os"
 	"os/signal"
@@ -71,6 +70,7 @@ func cleanup() {
 				Lock.Lock()
 				delete(Sessions, chatID)
 				Lock.Unlock()
+				fmt.Println("Session for chatID", chatID, "destroyed")
 			}
 		}
 		time.Sleep(10 * time.Minute)
@@ -117,7 +117,7 @@ func main() {
 	err := error(nil)
 	Decks, err = loadDecks(cli.Decks)
 	if err != nil {
-		log.Fatalf("Error reading YAML file: %v", err)
+		fmt.Printf("Error reading YAML file: %v", err)
 	}
 
 
@@ -200,8 +200,8 @@ func main() {
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh,os.Interrupt, syscall.SIGTERM)
 	go shutdown(sigCh, bot, botHandler)
-
+	// Start cleanup routine
+	go cleanup()
 	// Start handling updates
 	botHandler.Start()
-	go cleanup()
 }
