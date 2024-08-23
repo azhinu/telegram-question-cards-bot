@@ -9,6 +9,13 @@ import (
 	tu "github.com/mymmrac/telego/telegoutil"
 )
 
+func CheckSendError(err error) {
+	if err != nil {
+		fmt.Println("Failed to send message:", err)
+		
+	}
+}
+
 func Start(bot *telego.Bot, msg telego.Message) {
 	// Init user
 	Lock.Lock()
@@ -27,11 +34,12 @@ func Start(bot *telego.Bot, msg telego.Message) {
 	}
 	keyboard := tu.InlineKeyboard(rows...)
 
-	_, _ = bot.SendMessage(tu.Message(
+	_, err := bot.SendMessage(tu.Message(
 		tu.ID(msg.Chat.ID),
 		fmt.Sprintf("Hello %s!\n Choose the deck.\n\n Note: Your session will be reset after 1 hour of inactivity", msg.From.FirstName),
 	).WithReplyMarkup(keyboard),
 	)
+	CheckSendError(err)
 }
 
 func SelectDeck(bot *telego.Bot, query telego.CallbackQuery) {
@@ -67,8 +75,10 @@ func SelectDeck(bot *telego.Bot, query telego.CallbackQuery) {
 		return
 	}
 
-	_, _ = bot.SendMessage(tu.Message(tu.ID(query.Message.GetChat().ID), "Ошибочка вышла\n Use /start to reset"))
-	_ = bot.AnswerCallbackQuery(tu.CallbackQuery(query.ID).WithText("Done"))
+	_, err := bot.SendMessage(tu.Message(tu.ID(query.Message.GetChat().ID), "Ошибочка вышла\n Use /start to reset"))
+	CheckSendError(err)
+	err = bot.AnswerCallbackQuery(tu.CallbackQuery(query.ID).WithText("Done"))
+	CheckSendError(err)
 }
 
 func NextQuestion(bot *telego.Bot, query telego.CallbackQuery) {
@@ -76,8 +86,10 @@ func NextQuestion(bot *telego.Bot, query telego.CallbackQuery) {
 
 	// Check if deck is empty
 	if len(session.PlayingQuestinons) == 0 {
-		_, _ = bot.SendMessage(tu.Message(tu.ID(query.Message.GetChat().ID), "Deck is empty\n Use /start to reset"))
-		_ = bot.AnswerCallbackQuery(tu.CallbackQuery(query.ID).WithText("Done"))
+		_, err := bot.SendMessage(tu.Message(tu.ID(query.Message.GetChat().ID), "Deck is empty\n Use /start to reset"))
+		CheckSendError(err)
+		err = bot.AnswerCallbackQuery(tu.CallbackQuery(query.ID).WithText("Done"))
+		CheckSendError(err)
 		return
 	}
 
@@ -99,6 +111,8 @@ func NextQuestion(bot *telego.Bot, query telego.CallbackQuery) {
 			tu.InlineKeyboardButton("Next question").WithCallbackData("next"),
 			),
 		)
-	_, _ = bot.SendMessage(tu.Message(tu.ID(query.Message.GetChat().ID), question).WithReplyMarkup(keyboard))
-	_ = bot.AnswerCallbackQuery(tu.CallbackQuery(query.ID).WithText("Done"))
+	_, err := bot.SendMessage(tu.Message(tu.ID(query.Message.GetChat().ID), question).WithReplyMarkup(keyboard))
+	CheckSendError(err)
+	err = bot.AnswerCallbackQuery(tu.CallbackQuery(query.ID).WithText("Done"))
+	CheckSendError(err)
 }
