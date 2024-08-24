@@ -8,6 +8,7 @@ import (
 	"sync"
 	"syscall"
 	"time"
+	"unicode/utf8"
 
 	"github.com/alecthomas/kong"
 	"github.com/mymmrac/telego"
@@ -119,7 +120,14 @@ func main() {
 	if err != nil {
 		fmt.Printf("Error reading YAML file: %v", err)
 	}
-
+	fmt.Println("Loading decks...")
+	for deckName := range Decks {
+		fmt.Println("Loaded deck:", deckName)
+		if utf8.RuneCountInString(deckName) > 34 {
+			fmt.Println("Deck name should be less than 35 characters")
+			os.Exit(1)
+		}
+	}
 
 	// Init global vars
 	Sessions = make(map[int64]Session)
