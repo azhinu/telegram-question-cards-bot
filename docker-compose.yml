@@ -1,0 +1,11 @@
+services:
+  app:
+    image: tg-question_bot
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: tg-question_bot
+    volumes:
+      - ./decks.yml:/app/decks.yml
+    command: decks.yml
+    restart: unless-stopped
